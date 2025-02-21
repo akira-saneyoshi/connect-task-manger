@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"connectrpc.com/connect"
+	"connectrpc.com/grpcreflect"
 	userv1 "github.com/a-s/connect-task-manage/gen/api/user/v1"
 	"github.com/a-s/connect-task-manage/gen/api/user/v1/userv1connect"
 	"github.com/a-s/connect-task-manage/internal/adapter/repository/mysql"
@@ -26,7 +27,7 @@ type UserServiceServer struct {
 	userService *service.UserService
 }
 
-// CreateUser handles the CreateUser RPC method.
+// CreateUser, Login, UpdateUser, Logout, GetMe メソッドは変更なし (省略)
 func (s *UserServiceServer) CreateUser(
 	ctx context.Context,
 	req *connect.Request[userv1.CreateUserRequest],
@@ -34,12 +35,11 @@ func (s *UserServiceServer) CreateUser(
 
 	_, err := s.userService.CreateUser(ctx, req.Msg.Name, req.Msg.Email, req.Msg.Password)
 	if err != nil {
-		// エラーの種類に応じて適切なエラーコードを返す
 		return nil, connect.NewError(connect.CodeInvalidArgument, err)
 	}
 
 	res := connect.NewResponse(&userv1.CreateUserResponse{
-		User: nil, // User情報を含めない
+		User: nil,
 	})
 	return res, nil
 }
@@ -130,46 +130,45 @@ func main() {
 		log.Fatal(err)
 	}
 
-	//依存性の注入
 	userRepository, err := mysql.NewUserRepository(cfg)
 	if err != nil {
 		log.Fatal(err)
 	}
-
 	tokenManager := jwt.NewJWTManager(cfg)
-
 	userService := service.NewUserService(userRepository, tokenManager)
-
-	// サーバーの準備
-	userServiceServer := &UserServiceServer{
-		userService: userService,
-	}
-
-	// インターセプターの作成
+	userServiceServer := &UserServiceServer{userService: userService}
 	authInterceptor := authorization.NewAuthInterceptor(tokenManager)
 
-	// connect-go のハンドラを生成
+	// リフレクション用のサービス名リストを作成
+	services := []string{
+		userv1connect.UserServiceName,
+	}
+	reflector := grpcreflect.NewStaticReflector(services...) // 変更
+
 	mux := http.NewServeMux()
+	// connect-go のハンドラを登録
 	path, handler := userv1connect.NewUserServiceHandler(
 		userServiceServer,
-		connect.WithInterceptors(authInterceptor), //インターセプター追加
+		connect.WithInterceptors(authInterceptor),
+		// WithGRPC() は不要
 	)
 	mux.Handle(path, handler)
+	// リフレクション用のハンドラを登録
+	mux.Handle(grpcreflect.NewHandlerV1(reflector))      // 追加
+	mux.Handle(grpcreflect.NewHandlerV1Alpha(reflector)) // 追加
 
-	// サーバーの起動 (graceful shutdown 付き)
 	server := &http.Server{
 		Addr:    fmt.Sprintf(":%s", cfg.App.Port),
-		Handler: h2c.NewHandler(mux, &http2.Server{}), // h2c を有効化
+		Handler: h2c.NewHandler(mux, &http2.Server{}),
 	}
 
 	go func() {
-		fmt.Printf("... Listening on %s\n", server.Addr)
+		fmt.Println("... Listening on :", cfg.App.Port)
 		if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 			log.Fatal(err)
 		}
 	}()
 
-	// シグナルを待機して graceful shutdown を行う
 	quit := make(chan os.Signal, 1)
 	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
 	<-quit
@@ -183,5 +182,4 @@ func main() {
 	}
 
 	fmt.Println("Server exiting")
-
 }
