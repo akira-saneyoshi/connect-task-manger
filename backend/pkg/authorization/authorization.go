@@ -10,7 +10,7 @@ import (
 )
 
 // NewAuthInterceptor は認証インターセプターを作成します。
-func NewAuthInterceptor(tm token.TokenManager) connect.UnaryInterceptorFunc {
+func NewAuthInterceptor(tm token.TokenManager) connect.UnaryInterceptorFunc { // 戻り値の型は connect.UnaryInterceptorFunc
 	interceptor := func(next connect.UnaryFunc) connect.UnaryFunc {
 		return connect.UnaryFunc(func(
 			ctx context.Context,
@@ -54,5 +54,5 @@ func NewAuthInterceptor(tm token.TokenManager) connect.UnaryInterceptorFunc {
 			return next(ctx, req)
 		})
 	}
-	return connect.UnaryInterceptorFunc(interceptor)
+	return connect.UnaryInterceptorFunc(interceptor) // connect.UnaryInterceptorFunc 型の値を返す
 }

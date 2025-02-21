@@ -15,10 +15,12 @@ import (
 	userv1 "github.com/a-s/connect-task-manage/gen/api/user/v1"
 	"github.com/a-s/connect-task-manage/gen/api/user/v1/userv1connect"
 	"github.com/a-s/connect-task-manage/internal/adapter/repository/mysql"
+	"github.com/a-s/connect-task-manage/internal/adapter/token"
 	"github.com/a-s/connect-task-manage/internal/adapter/token/jwt"
 	"github.com/a-s/connect-task-manage/internal/domain/service"
 	"github.com/a-s/connect-task-manage/internal/infrastructure/config"
 	"github.com/a-s/connect-task-manage/pkg/authorization"
+	"go.uber.org/fx"
 	"golang.org/x/net/http2"
 	"golang.org/x/net/http2/h2c"
 )
@@ -123,63 +125,105 @@ func (s *UserServiceServer) GetMe(
 	return res, nil
 }
 
-func main() {
-	// 設定の読み込み
-	cfg, err := config.LoadConfig()
-	if err != nil {
-		log.Fatal(err)
-	}
+// NewUserServiceServer は UserServiceServer のコンストラクタ (Fx 用)
+func NewUserServiceServer(userService *service.UserService) *UserServiceServer {
+	return &UserServiceServer{userService: userService}
+}
 
-	userRepository, err := mysql.NewUserRepository(cfg)
-	if err != nil {
-		log.Fatal(err)
-	}
-	tokenManager := jwt.NewJWTManager(cfg)
-	userService := service.NewUserService(userRepository, tokenManager)
-	userServiceServer := &UserServiceServer{userService: userService}
-	authInterceptor := authorization.NewAuthInterceptor(tokenManager)
-
-	// リフレクション用のサービス名リストを作成
+// NewHTTPServer は HTTP サーバーのコンストラクタ (Fx 用)
+func NewHTTPServer(
+	lc fx.Lifecycle,
+	cfg *config.Config,
+	userServiceServer *UserServiceServer,
+	authInterceptor connect.UnaryInterceptorFunc, // 引数の型を connect.UnaryInterceptorFunc に変更
+) *http.Server {
 	services := []string{
 		userv1connect.UserServiceName,
 	}
-	reflector := grpcreflect.NewStaticReflector(services...) // 変更
+	reflector := grpcreflect.NewStaticReflector(services...)
 
 	mux := http.NewServeMux()
-	// connect-go のハンドラを登録
 	path, handler := userv1connect.NewUserServiceHandler(
 		userServiceServer,
-		connect.WithInterceptors(authInterceptor),
-		// WithGRPC() は不要
+		connect.WithInterceptors(authInterceptor), // そのまま
 	)
 	mux.Handle(path, handler)
-	// リフレクション用のハンドラを登録
-	mux.Handle(grpcreflect.NewHandlerV1(reflector))      // 追加
-	mux.Handle(grpcreflect.NewHandlerV1Alpha(reflector)) // 追加
+	mux.Handle(grpcreflect.NewHandlerV1(reflector))
+	mux.Handle(grpcreflect.NewHandlerV1Alpha(reflector))
 
 	server := &http.Server{
 		Addr:    fmt.Sprintf(":%s", cfg.App.Port),
 		Handler: h2c.NewHandler(mux, &http2.Server{}),
 	}
 
+	lc.Append(fx.Hook{
+		OnStart: func(ctx context.Context) error {
+			fmt.Println("... Listening on ", cfg.App.Port)
+			go func() {
+				if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+					log.Fatal(err)
+				}
+			}()
+			return nil
+		},
+		OnStop: func(ctx context.Context) error {
+			fmt.Println("Shutting down server...")
+			return server.Shutdown(ctx)
+		},
+	})
+
+	return server
+}
+
+// NewAuthInterceptor は AuthInterceptor のコンストラクタ (Fx 用)
+func NewAuthInterceptor(tm token.TokenManager) connect.UnaryInterceptorFunc { // 戻り値の型を connect.UnaryInterceptorFunc に
+	return authorization.NewAuthInterceptor(tm) //authorization.NewAuthInterceptorを呼び出す
+}
+
+func main() {
+	app := fx.New(
+		// 設定ファイルの読み込み
+		fx.Provide(config.LoadConfig),
+
+		// infrastructure
+		fx.Provide(mysql.NewUserRepository), // MySQL リポジトリ
+		fx.Provide(jwt.NewJWTManager),       // JWT マネージャ
+
+		// adapter
+		fx.Provide(
+		//token.NewTokenManager, // インターフェースではなく、実装を直接 Provide (jwt)
+		//repository.NewUserRepository, // インターフェースではなく、実装を直接 Provide (mysql)
+		),
+
+		// domain
+		fx.Provide(service.NewUserService), // UserService
+
+		// pkg (authorization)
+		fx.Provide(NewAuthInterceptor),
+
+		// cmd/server
+		fx.Provide(NewUserServiceServer), // UserServiceServer
+		fx.Provide(NewHTTPServer),        // HTTP Server
+
+		// アプリケーションの起動
+		fx.Invoke(func(server *http.Server) {}), // Invoke で HTTP サーバーを起動
+	)
+
+	// シグナルハンドリング (Graceful Shutdown)
+	stop := make(chan os.Signal, 1)
+	signal.Notify(stop, os.Interrupt, syscall.SIGTERM)
+
 	go func() {
-		fmt.Println("... Listening on :", cfg.App.Port)
-		if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+		if err := app.Start(context.Background()); err != nil {
 			log.Fatal(err)
 		}
 	}()
 
-	quit := make(chan os.Signal, 1)
-	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
-	<-quit
+	<-stop
 
-	fmt.Println("Shutting down server...")
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
-
-	if err := server.Shutdown(ctx); err != nil {
-		log.Fatal("Server forced to shutdown: ", err)
+	if err := app.Stop(ctx); err != nil {
+		log.Fatal(err)
 	}
-
-	fmt.Println("Server exiting")
 }
