@@ -15,12 +15,14 @@ import (
 	userv1 "github.com/a-s/connect-task-manage/gen/api/user/v1"
 	"github.com/a-s/connect-task-manage/gen/api/user/v1/userv1connect"
 	"github.com/a-s/connect-task-manage/internal/adapter/repository/mysql"
-	"github.com/a-s/connect-task-manage/internal/adapter/token"
 	"github.com/a-s/connect-task-manage/internal/adapter/token/jwt"
 	"github.com/a-s/connect-task-manage/internal/domain/service"
 	"github.com/a-s/connect-task-manage/internal/infrastructure/config"
+	"github.com/a-s/connect-task-manage/internal/infrastructure/logger"
 	"github.com/a-s/connect-task-manage/pkg/authorization"
+	"github.com/a-s/connect-task-manage/pkg/logging"
 	"go.uber.org/fx"
+	"go.uber.org/zap"
 	"golang.org/x/net/http2"
 	"golang.org/x/net/http2/h2c"
 )
@@ -130,22 +132,35 @@ func NewUserServiceServer(userService *service.UserService) *UserServiceServer {
 	return &UserServiceServer{userService: userService}
 }
 
-// NewHTTPServer は HTTP サーバーのコンストラクタ (Fx 用)
+// InterceptorFuncToInterceptor は connect.UnaryInterceptorFunc を connect.Interceptor に変換
+func InterceptorFuncToInterceptor(fn connect.UnaryInterceptorFunc) connect.Interceptor {
+	return connect.Interceptor(fn)
+}
+
+// NewInterceptors はインターセプターのリストを提供
+func NewInterceptors(interceptors []connect.UnaryInterceptorFunc) []connect.Interceptor {
+	converted := make([]connect.Interceptor, len(interceptors))
+	for i, interceptor := range interceptors {
+		converted[i] = connect.Interceptor(interceptor)
+	}
+	return converted
+}
+
+// NewHTTPServer は HTTP サーバーのコンストラクタ
 func NewHTTPServer(
 	lc fx.Lifecycle,
 	cfg *config.Config,
 	userServiceServer *UserServiceServer,
-	authInterceptor connect.UnaryInterceptorFunc, // 引数の型を connect.UnaryInterceptorFunc に変更
+	log *zap.Logger,
+	interceptors []connect.Interceptor,
 ) *http.Server {
-	services := []string{
-		userv1connect.UserServiceName,
-	}
+	services := []string{userv1connect.UserServiceName}
 	reflector := grpcreflect.NewStaticReflector(services...)
 
 	mux := http.NewServeMux()
 	path, handler := userv1connect.NewUserServiceHandler(
 		userServiceServer,
-		connect.WithInterceptors(authInterceptor), // そのまま
+		connect.WithInterceptors(interceptors...),
 	)
 	mux.Handle(path, handler)
 	mux.Handle(grpcreflect.NewHandlerV1(reflector))
@@ -158,16 +173,16 @@ func NewHTTPServer(
 
 	lc.Append(fx.Hook{
 		OnStart: func(ctx context.Context) error {
-			fmt.Println("... Listening on ", cfg.App.Port)
+			log.Info("Starting server", zap.String("port", cfg.App.Port))
 			go func() {
 				if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-					log.Fatal(err)
+					log.Fatal("Server listen error", zap.Error(err))
 				}
 			}()
 			return nil
 		},
 		OnStop: func(ctx context.Context) error {
-			fmt.Println("Shutting down server...")
+			log.Info("Shutting down server...")
 			return server.Shutdown(ctx)
 		},
 	})
@@ -175,41 +190,32 @@ func NewHTTPServer(
 	return server
 }
 
-// NewAuthInterceptor は AuthInterceptor のコンストラクタ (Fx 用)
-func NewAuthInterceptor(tm token.TokenManager) connect.UnaryInterceptorFunc { // 戻り値の型を connect.UnaryInterceptorFunc に
-	return authorization.NewAuthInterceptor(tm) //authorization.NewAuthInterceptorを呼び出す
-}
-
 func main() {
 	app := fx.New(
-		// 設定ファイルの読み込み
-		fx.Provide(config.LoadConfig),
-
-		// infrastructure
-		fx.Provide(mysql.NewUserRepository), // MySQL リポジトリ
-		fx.Provide(jwt.NewJWTManager),       // JWT マネージャ
-
-		// adapter
 		fx.Provide(
-		//token.NewTokenManager, // インターフェースではなく、実装を直接 Provide (jwt)
-		//repository.NewUserRepository, // インターフェースではなく、実装を直接 Provide (mysql)
+			config.LoadConfig,
+			logger.NewLogger,
+			mysql.NewUserRepository,
+			jwt.NewJWTManager,
+			service.NewUserService,
+			NewUserServiceServer,
+			fx.Annotate(
+				authorization.NewAuthInterceptor,
+				fx.ResultTags(`group:"interceptors"`),
+			),
+			fx.Annotate(
+				logging.NewLoggingInterceptor,
+				fx.ResultTags(`group:"interceptors"`),
+			),
+			fx.Annotate(
+				NewInterceptors,
+				fx.ParamTags(`group:"interceptors"`),
+			),
+			NewHTTPServer,
 		),
-
-		// domain
-		fx.Provide(service.NewUserService), // UserService
-
-		// pkg (authorization)
-		fx.Provide(NewAuthInterceptor),
-
-		// cmd/server
-		fx.Provide(NewUserServiceServer), // UserServiceServer
-		fx.Provide(NewHTTPServer),        // HTTP Server
-
-		// アプリケーションの起動
-		fx.Invoke(func(server *http.Server) {}), // Invoke で HTTP サーバーを起動
+		fx.Invoke(func(server *http.Server) {}),
 	)
 
-	// シグナルハンドリング (Graceful Shutdown)
 	stop := make(chan os.Signal, 1)
 	signal.Notify(stop, os.Interrupt, syscall.SIGTERM)
 
