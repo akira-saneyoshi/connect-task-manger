@@ -22,8 +22,8 @@ type CreateUserParams struct {
 }
 
 // sql/queries/users.sql
-func (q *Queries) CreateUser(ctx context.Context, db DBTX, arg *CreateUserParams) error {
-	_, err := db.ExecContext(ctx, createUser,
+func (q *Queries) CreateUser(ctx context.Context, arg *CreateUserParams) error {
+	_, err := q.exec(ctx, q.createUserStmt, createUser,
 		arg.ID,
 		arg.Name,
 		arg.Email,
@@ -36,8 +36,8 @@ const getUserByEmail = `-- name: GetUserByEmail :one
 SELECT id, name, email, password, created_at, updated_at FROM users WHERE email = ? LIMIT 1
 `
 
-func (q *Queries) GetUserByEmail(ctx context.Context, db DBTX, email string) (*User, error) {
-	row := db.QueryRowContext(ctx, getUserByEmail, email)
+func (q *Queries) GetUserByEmail(ctx context.Context, email string) (*User, error) {
+	row := q.queryRow(ctx, q.getUserByEmailStmt, getUserByEmail, email)
 	var i User
 	err := row.Scan(
 		&i.ID,
@@ -54,8 +54,8 @@ const getUserByID = `-- name: GetUserByID :one
 SELECT id, name, email, password, created_at, updated_at FROM users WHERE id = ? LIMIT 1
 `
 
-func (q *Queries) GetUserByID(ctx context.Context, db DBTX, id string) (*User, error) {
-	row := db.QueryRowContext(ctx, getUserByID, id)
+func (q *Queries) GetUserByID(ctx context.Context, id string) (*User, error) {
+	row := q.queryRow(ctx, q.getUserByIDStmt, getUserByID, id)
 	var i User
 	err := row.Scan(
 		&i.ID,
@@ -79,8 +79,8 @@ type UpdateUserParams struct {
 	ID       string `json:"id"`
 }
 
-func (q *Queries) UpdateUser(ctx context.Context, db DBTX, arg *UpdateUserParams) error {
-	_, err := db.ExecContext(ctx, updateUser,
+func (q *Queries) UpdateUser(ctx context.Context, arg *UpdateUserParams) error {
+	_, err := q.exec(ctx, q.updateUserStmt, updateUser,
 		arg.Name,
 		arg.Email,
 		arg.Password,

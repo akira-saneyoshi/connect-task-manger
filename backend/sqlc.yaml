@@ -12,4 +12,4 @@ sql:
         emit_interface: true #インターフェースを生成
         emit_result_struct_pointers: true   # Result structs are generated as pointers
         emit_params_struct_pointers: true   # Parameter structs are generated as pointers
-        emit_methods_with_db_argument: true #dbを引数に取るメソッドを生成
+        emit_prepared_queries: true

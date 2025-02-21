@@ -16,9 +16,10 @@ import (
 type userRepository struct {
 	db      *sql.DB
 	queries *query.Queries
+	tx      *sql.Tx // トランザクションを保持するフィールド
 }
 
-// NewUserRepository は新しい UserRepository の実装を返します
+// NewUserRepository は新しい UserRepository の実装を返します。
 func NewUserRepository(cfg *config.Config) (repository.UserRepository, error) {
 	db, err := sql.Open("mysql", cfg.DB.DSN)
 	if err != nil {
@@ -30,12 +31,31 @@ func NewUserRepository(cfg *config.Config) (repository.UserRepository, error) {
 
 	return &userRepository{
 		db:      db,
-		queries: query.New(), // ここを修正：引数なし
+		queries: query.New(db),
+		tx:      nil,
 	}, nil
 }
 
+// トランザクションを開始
+func (r *userRepository) BeginTx(ctx context.Context) (*sql.Tx, error) {
+	tx, err := r.db.BeginTx(ctx, nil)
+	if err != nil {
+		return nil, err
+	}
+	return tx, nil
+}
+
+// トランザクション内での操作用 (Queries オブジェクトを返す)
+func (r *userRepository) WithTx(tx *sql.Tx) repository.UserRepository {
+	return &userRepository{
+		db:      r.db,                 // db は共通
+		queries: r.queries.WithTx(tx), // WithTx で新しい Queries を作成
+		tx:      tx,                   // tx を保持
+	}
+}
+
 func (r *userRepository) CreateUser(ctx context.Context, user *model.User) (*model.User, error) {
-	err := r.queries.CreateUser(ctx, r.db, &query.CreateUserParams{
+	err := r.queries.CreateUser(ctx, &query.CreateUserParams{ // 戻り値は err のみ
 		ID:       user.ID,
 		Name:     user.Name,
 		Email:    user.Email,
@@ -48,7 +68,8 @@ func (r *userRepository) CreateUser(ctx context.Context, user *model.User) (*mod
 }
 
 func (r *userRepository) GetUserByEmail(ctx context.Context, email string) (*model.User, error) {
-	user, err := r.queries.GetUserByEmail(ctx, r.db, email)
+
+	user, err := r.queries.GetUserByEmail(ctx, email)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, model.ErrUserNotFound
@@ -67,7 +88,7 @@ func (r *userRepository) GetUserByEmail(ctx context.Context, email string) (*mod
 }
 
 func (r *userRepository) GetUserByID(ctx context.Context, id string) (*model.User, error) {
-	user, err := r.queries.GetUserByID(ctx, r.db, id)
+	user, err := r.queries.GetUserByID(ctx, id)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, model.ErrUserNotFound
@@ -85,7 +106,8 @@ func (r *userRepository) GetUserByID(ctx context.Context, id string) (*model.Use
 }
 
 func (r *userRepository) UpdateUser(ctx context.Context, user *model.User) (*model.User, error) {
-	err := r.queries.UpdateUser(ctx, r.db, &query.UpdateUserParams{
+
+	err := r.queries.UpdateUser(ctx, &query.UpdateUserParams{
 		ID:       user.ID,
 		Name:     user.Name,
 		Email:    user.Email,
@@ -96,7 +118,7 @@ func (r *userRepository) UpdateUser(ctx context.Context, user *model.User) (*mod
 		return nil, err
 	}
 
-	updatedUser, err := r.queries.GetUserByID(ctx, r.db, user.ID)
+	updatedUser, err := r.queries.GetUserByID(ctx, user.ID)
 	if err != nil {
 		return nil, err
 	}

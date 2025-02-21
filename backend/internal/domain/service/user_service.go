@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"database/sql"
 	"fmt"
 
 	"github.com/a-s/connect-task-manage/internal/adapter/repository"
@@ -24,10 +25,16 @@ func NewUserService(userRepo repository.UserRepository, tokenManager token.Token
 	}
 }
 
-// CreateUser は新しいユーザーを作成します。
+// WithTx はトランザクションを開始し、トランザクション内で操作を行うための新しい UserService インスタンスを返します。
+func (s *UserService) WithTx(tx *sql.Tx) *UserService {
+	return &UserService{
+		userRepository: s.userRepository.WithTx(tx), // トランザクション用のリポジトリを使用
+		tokenManager:   s.tokenManager,              // tokenManager は共通
+	}
+}
+
 func (s *UserService) CreateUser(ctx context.Context, name, email, password string) (*model.User, error) {
-	// 既存ユーザーのチェック (email の一意性)
-	existingUser, _ := s.userRepository.GetUserByEmail(ctx, email) //エラーを無視して存在チェック
+	existingUser, _ := s.userRepository.GetUserByEmail(ctx, email)
 	if existingUser != nil {
 		return nil, model.ErrUserAlreadyExists
 	}
@@ -38,14 +45,13 @@ func (s *UserService) CreateUser(ctx context.Context, name, email, password stri
 		return nil, fmt.Errorf("failed to create user entity: %w", err)
 	}
 
-	_, err = s.userRepository.CreateUser(ctx, user) // 戻り値は使わない
+	_, err = s.userRepository.CreateUser(ctx, user)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create user in repository: %w", err)
 	}
-	return nil, nil // repository の戻り値が nil なので、ここも nil を返す。
+	return nil, nil
 }
 
-// Login はユーザーを認証し、アクセストークンを生成します。
 func (s *UserService) Login(ctx context.Context, email, password string) (string, error) {
 	user, err := s.userRepository.GetUserByEmail(ctx, email)
 	if err != nil {
@@ -64,7 +70,6 @@ func (s *UserService) Login(ctx context.Context, email, password string) (string
 	return token, nil
 }
 
-// GetUserByID は、IDでユーザーを取得します。
 func (s *UserService) GetUserByID(ctx context.Context, id string) (*model.User, error) {
 	user, err := s.userRepository.GetUserByID(ctx, id)
 	if err != nil {
@@ -73,10 +78,29 @@ func (s *UserService) GetUserByID(ctx context.Context, id string) (*model.User, 
 	return user, nil
 }
 
-// UpdateUser はユーザー情報を更新します。
+// UpdateUser はトランザクション内でユーザー情報を更新します。
 func (s *UserService) UpdateUser(ctx context.Context, id, name, email, password string) (*model.User, error) {
 
-	user, err := s.userRepository.GetUserByID(ctx, id)
+	// トランザクション開始 (WithTx が呼ばれていない場合)
+	tx, err := s.userRepository.BeginTx(ctx)
+	if err != nil {
+		return nil, err
+	}
+	// トランザクション用の UserService を作成
+	txService := s.WithTx(tx)
+
+	defer func() {
+		if p := recover(); p != nil {
+			_ = tx.Rollback()
+			panic(p) // 再度パニックさせる
+		} else if err != nil {
+			_ = tx.Rollback() // エラーが発生したらロールバック
+		} else {
+			err = tx.Commit() // 成功したらコミット
+		}
+	}()
+
+	user, err := txService.userRepository.GetUserByID(ctx, id) //txServiceを使う
 	if err != nil {
 		return nil, err
 	}
@@ -85,7 +109,7 @@ func (s *UserService) UpdateUser(ctx context.Context, id, name, email, password 
 		return nil, err
 	}
 
-	updatedUser, err := s.userRepository.UpdateUser(ctx, user)
+	updatedUser, err := txService.userRepository.UpdateUser(ctx, user) //txServiceを使う
 	if err != nil {
 		return nil, err
 	}
