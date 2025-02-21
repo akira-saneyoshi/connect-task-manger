@@ -1,0 +1,31 @@
+services:
+  task_app_backend:
+    build:
+      context: .
+      dockerfile: ./docker/backend/Dockerfile
+    container_name: task_app_backend_container
+    ports:
+      - 8080:8080
+    tty: true
+    volumes:
+      - ./backend:/opt/task_manage
+    # command: sh -c "go mod tidy && air -c .air.toml"
+  task_db_mysql8_container:
+    build:
+      context: .
+      dockerfile: ./docker/database/Dockerfile
+    env_file: ./docker/database/db_env_file
+    container_name: task_db_mysql8_container
+    volumes:
+      - task_app_db_mysql8:/var/lib/mysql
+      - ./docker/database/my.cnf:/etc/mysql/conf.d/my.cnf
+      - ./backend/migrations/schema:/docker-entrypoint-initdb.d
+      - ./backend/migrations/schema:/etc/ddl
+      - ./docker/database/logs:/var/log/mysql
+    ports:
+      - 3306:3306
+    links:
+      - task_app_backend
+volumes:
+  task_app_db_mysql8:
+    name: task_app_db_mysql8

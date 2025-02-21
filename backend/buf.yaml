@@ -1,0 +1,10 @@
+version: v2
+name: buf.build/a-s/task-manager
+deps:
+  - buf.build/googleapis/googleapis
+breaking:
+  use:
+    - FILE
+lint:
+  use:
+    - STANDARD

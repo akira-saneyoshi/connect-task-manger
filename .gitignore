@@ -23,3 +23,11 @@ go.work.sum
 
 # env file
 .env
+
+# log files
+*.log
+*.txt
+
+# docker
+docker/database/initdb.d/
+docker/database/logs/
