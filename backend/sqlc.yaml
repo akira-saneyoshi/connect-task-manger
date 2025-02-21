@@ -1,0 +1,15 @@
+version: "2"
+sql:
+  - schema: "sql/schema.sql"  # スキーマファイルのパス
+    queries: "sql/queries/"  # クエリファイルのパス (ディレクトリを指定)
+    engine: "mysql"
+    gen:
+      go:
+        package: "query"      # 生成される Go パッケージ名
+        out: "sql/query"       # 生成される Go ファイルの出力先
+        sql_package: "database/sql"
+        emit_json_tags: true
+        emit_interface: true #インターフェースを生成
+        emit_result_struct_pointers: true   # Result structs are generated as pointers
+        emit_params_struct_pointers: true   # Parameter structs are generated as pointers
+        emit_methods_with_db_argument: true #dbを引数に取るメソッドを生成

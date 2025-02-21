@@ -9,6 +9,5 @@ SELECT * FROM users WHERE email = ? LIMIT 1;
 -- name: GetUserByID :one
 SELECT * FROM users WHERE id = ? LIMIT 1;
 
--- name: UpdateUser :one
+-- name: UpdateUser :exec
 UPDATE users SET name = ?, email = ?, password = ? WHERE id = ?;
-SELECT * FROM users WHERE id = ?;
