@@ -2,7 +2,7 @@ syntax = "proto3";
 
 package task.v1;
 
-option go_package = "example.com/ddd-auth-app/gen/api/task/v1;taskv1";
+option go_package = "github.com/a-s/connect-task-manage/gen/api/task/v1;taskv1";
 
 import "google/protobuf/timestamp.proto";
 
