@@ -12,10 +12,13 @@ import (
 
 	"connectrpc.com/connect"
 	"connectrpc.com/grpcreflect"
+	taskv1 "github.com/a-s/connect-task-manage/gen/api/task/v1"
+	"github.com/a-s/connect-task-manage/gen/api/task/v1/taskv1connect"
 	userv1 "github.com/a-s/connect-task-manage/gen/api/user/v1"
 	"github.com/a-s/connect-task-manage/gen/api/user/v1/userv1connect"
 	"github.com/a-s/connect-task-manage/internal/adapter/repository/mysql"
 	"github.com/a-s/connect-task-manage/internal/adapter/token/jwt"
+	"github.com/a-s/connect-task-manage/internal/domain/model"
 	"github.com/a-s/connect-task-manage/internal/domain/service"
 	"github.com/a-s/connect-task-manage/internal/infrastructure/config"
 	"github.com/a-s/connect-task-manage/internal/infrastructure/logger"
@@ -25,6 +28,7 @@ import (
 	"go.uber.org/zap"
 	"golang.org/x/net/http2"
 	"golang.org/x/net/http2/h2c"
+	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
 type UserServiceServer struct {
@@ -127,6 +131,114 @@ func (s *UserServiceServer) GetMe(
 	return res, nil
 }
 
+// TaskServiceServer (TaskService のハンドラー)
+type TaskServiceServer struct {
+	taskService *service.TaskService
+}
+
+// NewTaskServiceServer は TaskServiceServer のコンストラクタ (Fx 用)
+func NewTaskServiceServer(taskService *service.TaskService) *TaskServiceServer {
+	return &TaskServiceServer{taskService: taskService}
+}
+
+// CreateTask (タスク作成)
+func (s *TaskServiceServer) CreateTask(
+	ctx context.Context,
+	req *connect.Request[taskv1.CreateTaskRequest],
+) (*connect.Response[taskv1.CreateTaskResponse], error) {
+
+	// 認証情報からユーザーIDを取得
+	userID, ok := ctx.Value("userID").(string)
+	if !ok {
+		return nil, connect.NewError(connect.CodeUnauthenticated, fmt.Errorf("user id not found in context"))
+	}
+
+	err := s.taskService.CreateTask(ctx, req.Msg.Title, req.Msg.Description, userID)
+	if err != nil {
+		return nil, connect.NewError(connect.CodeInternal, err)
+	}
+	return connect.NewResponse(&taskv1.CreateTaskResponse{}), nil
+}
+
+// UpdateTask (タスク更新)
+func (s *TaskServiceServer) UpdateTask(
+	ctx context.Context,
+	req *connect.Request[taskv1.UpdateTaskRequest],
+) (*connect.Response[taskv1.UpdateTaskResponse], error) {
+
+	updatedTask, err := s.taskService.UpdateTask(ctx, req.Msg.Id, req.Msg.Title, req.Msg.Description, req.Msg.IsCompleted)
+	if err != nil {
+		return nil, connect.NewError(connect.CodeInternal, err)
+	}
+
+	res := connect.NewResponse(&taskv1.UpdateTaskResponse{
+		Task: &taskv1.Task{
+			Id:          updatedTask.ID,
+			Title:       updatedTask.Title,
+			Description: updatedTask.Description,
+			IsCompleted: updatedTask.IsCompleted,
+			UserId:      updatedTask.UserID,
+			CreatedAt:   &timestamppb.Timestamp{Seconds: updatedTask.CreatedAt.Unix()},
+			UpdatedAt:   &timestamppb.Timestamp{Seconds: updatedTask.UpdatedAt.Unix()},
+		},
+	})
+	return res, nil
+}
+
+// ListTasks (タスク一覧取得)
+func (s *TaskServiceServer) ListTasks(
+	ctx context.Context,
+	req *connect.Request[taskv1.ListTasksRequest],
+) (*connect.Response[taskv1.ListTasksResponse], error) {
+
+	// 認証情報からユーザーIDを取得
+	userID, ok := ctx.Value("userID").(string)
+	if !ok {
+		return nil, connect.NewError(connect.CodeUnauthenticated, fmt.Errorf("user id not found in context"))
+	}
+
+	tasks, err := s.taskService.ListTasks(ctx, userID)
+	if err != nil {
+		return nil, connect.NewError(connect.CodeInternal, err)
+	}
+
+	res := connect.NewResponse(&taskv1.ListTasksResponse{
+		Tasks: toProtoTasks(tasks), // []*model.Task から []*taskv1.Task への変換
+	})
+	return res, nil
+}
+
+// DeleteTask (タスク削除)
+func (s *TaskServiceServer) DeleteTask(
+	ctx context.Context,
+	req *connect.Request[taskv1.DeleteTaskRequest],
+) (*connect.Response[taskv1.DeleteTaskResponse], error) {
+
+	err := s.taskService.DeleteTask(ctx, req.Msg.Id)
+	if err != nil {
+		return nil, connect.NewError(connect.CodeInternal, err)
+	}
+
+	return connect.NewResponse(&taskv1.DeleteTaskResponse{}), nil
+}
+
+// toProtoTasks は []*model.Task を []*taskv1.Task に変換するヘルパー関数
+func toProtoTasks(tasks []*model.Task) []*taskv1.Task {
+	protoTasks := make([]*taskv1.Task, len(tasks))
+	for i, task := range tasks {
+		protoTasks[i] = &taskv1.Task{
+			Id:          task.ID,
+			Title:       task.Title,
+			Description: task.Description,
+			IsCompleted: task.IsCompleted,
+			UserId:      task.UserID,
+			CreatedAt:   timestamppb.New(task.CreatedAt),
+			UpdatedAt:   timestamppb.New(task.UpdatedAt),
+		}
+	}
+	return protoTasks
+}
+
 // NewUserServiceServer は UserServiceServer のコンストラクタ (Fx 用)
 func NewUserServiceServer(userService *service.UserService) *UserServiceServer {
 	return &UserServiceServer{userService: userService}
@@ -151,17 +263,27 @@ func NewHTTPServer(
 	lc fx.Lifecycle,
 	cfg *config.Config,
 	userServiceServer *UserServiceServer,
+	taskServiceServer *TaskServiceServer, //追加
 	log *zap.Logger,
 	interceptors []connect.Interceptor,
 ) *http.Server {
-	services := []string{userv1connect.UserServiceName}
+	services := []string{userv1connect.UserServiceName, taskv1connect.TaskServiceName}
 	reflector := grpcreflect.NewStaticReflector(services...)
 
 	mux := http.NewServeMux()
+
+	// user
 	path, handler := userv1connect.NewUserServiceHandler(
 		userServiceServer,
 		connect.WithInterceptors(interceptors...),
 	)
+
+	//task
+	taskPath, taskHandler := taskv1connect.NewTaskServiceHandler(
+		taskServiceServer,
+		connect.WithInterceptors(interceptors...),
+	)
+	mux.Handle(taskPath, taskHandler)
 	mux.Handle(path, handler)
 	mux.Handle(grpcreflect.NewHandlerV1(reflector))
 	mux.Handle(grpcreflect.NewHandlerV1Alpha(reflector))
@@ -196,9 +318,12 @@ func main() {
 			config.LoadConfig,
 			logger.NewLogger,
 			mysql.NewUserRepository,
+			mysql.NewTaskRepository, // 追加
 			jwt.NewJWTManager,
 			service.NewUserService,
+			service.NewTaskService, // 追加
 			NewUserServiceServer,
+			NewTaskServiceServer, // 追加
 			fx.Annotate(
 				authorization.NewAuthInterceptor,
 				fx.ResultTags(`group:"interceptors"`),

@@ -9,10 +9,16 @@ import (
 )
 
 type Querier interface {
+	// sql/queries/tasks.sql
+	CreateTask(ctx context.Context, arg *CreateTaskParams) error
 	// sql/queries/users.sql
 	CreateUser(ctx context.Context, arg *CreateUserParams) error
+	DeleteTask(ctx context.Context, id string) error
+	GetTaskByID(ctx context.Context, id string) (*Task, error)
 	GetUserByEmail(ctx context.Context, email string) (*User, error)
 	GetUserByID(ctx context.Context, id string) (*User, error)
+	ListTasks(ctx context.Context, userID string) ([]*Task, error)
+	UpdateTask(ctx context.Context, arg *UpdateTaskParams) error
 	UpdateUser(ctx context.Context, arg *UpdateUserParams) error
 }
 

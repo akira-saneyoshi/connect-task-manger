@@ -5,8 +5,19 @@
 package query
 
 import (
+	"database/sql"
 	"time"
 )
+
+type Task struct {
+	ID          string         `json:"id"`
+	Title       string         `json:"title"`
+	Description sql.NullString `json:"description"`
+	IsCompleted bool           `json:"is_completed"`
+	UserID      string         `json:"user_id"`
+	CreatedAt   time.Time      `json:"created_at"`
+	UpdatedAt   time.Time      `json:"updated_at"`
+}
 
 type User struct {
 	ID        string    `json:"id"`

@@ -24,14 +24,29 @@ func New(db DBTX) *Queries {
 func Prepare(ctx context.Context, db DBTX) (*Queries, error) {
 	q := Queries{db: db}
 	var err error
+	if q.createTaskStmt, err = db.PrepareContext(ctx, createTask); err != nil {
+		return nil, fmt.Errorf("error preparing query CreateTask: %w", err)
+	}
 	if q.createUserStmt, err = db.PrepareContext(ctx, createUser); err != nil {
 		return nil, fmt.Errorf("error preparing query CreateUser: %w", err)
+	}
+	if q.deleteTaskStmt, err = db.PrepareContext(ctx, deleteTask); err != nil {
+		return nil, fmt.Errorf("error preparing query DeleteTask: %w", err)
+	}
+	if q.getTaskByIDStmt, err = db.PrepareContext(ctx, getTaskByID); err != nil {
+		return nil, fmt.Errorf("error preparing query GetTaskByID: %w", err)
 	}
 	if q.getUserByEmailStmt, err = db.PrepareContext(ctx, getUserByEmail); err != nil {
 		return nil, fmt.Errorf("error preparing query GetUserByEmail: %w", err)
 	}
 	if q.getUserByIDStmt, err = db.PrepareContext(ctx, getUserByID); err != nil {
 		return nil, fmt.Errorf("error preparing query GetUserByID: %w", err)
+	}
+	if q.listTasksStmt, err = db.PrepareContext(ctx, listTasks); err != nil {
+		return nil, fmt.Errorf("error preparing query ListTasks: %w", err)
+	}
+	if q.updateTaskStmt, err = db.PrepareContext(ctx, updateTask); err != nil {
+		return nil, fmt.Errorf("error preparing query UpdateTask: %w", err)
 	}
 	if q.updateUserStmt, err = db.PrepareContext(ctx, updateUser); err != nil {
 		return nil, fmt.Errorf("error preparing query UpdateUser: %w", err)
@@ -41,9 +56,24 @@ func Prepare(ctx context.Context, db DBTX) (*Queries, error) {
 
 func (q *Queries) Close() error {
 	var err error
+	if q.createTaskStmt != nil {
+		if cerr := q.createTaskStmt.Close(); cerr != nil {
+			err = fmt.Errorf("error closing createTaskStmt: %w", cerr)
+		}
+	}
 	if q.createUserStmt != nil {
 		if cerr := q.createUserStmt.Close(); cerr != nil {
 			err = fmt.Errorf("error closing createUserStmt: %w", cerr)
+		}
+	}
+	if q.deleteTaskStmt != nil {
+		if cerr := q.deleteTaskStmt.Close(); cerr != nil {
+			err = fmt.Errorf("error closing deleteTaskStmt: %w", cerr)
+		}
+	}
+	if q.getTaskByIDStmt != nil {
+		if cerr := q.getTaskByIDStmt.Close(); cerr != nil {
+			err = fmt.Errorf("error closing getTaskByIDStmt: %w", cerr)
 		}
 	}
 	if q.getUserByEmailStmt != nil {
@@ -54,6 +84,16 @@ func (q *Queries) Close() error {
 	if q.getUserByIDStmt != nil {
 		if cerr := q.getUserByIDStmt.Close(); cerr != nil {
 			err = fmt.Errorf("error closing getUserByIDStmt: %w", cerr)
+		}
+	}
+	if q.listTasksStmt != nil {
+		if cerr := q.listTasksStmt.Close(); cerr != nil {
+			err = fmt.Errorf("error closing listTasksStmt: %w", cerr)
+		}
+	}
+	if q.updateTaskStmt != nil {
+		if cerr := q.updateTaskStmt.Close(); cerr != nil {
+			err = fmt.Errorf("error closing updateTaskStmt: %w", cerr)
 		}
 	}
 	if q.updateUserStmt != nil {
@@ -100,9 +140,14 @@ func (q *Queries) queryRow(ctx context.Context, stmt *sql.Stmt, query string, ar
 type Queries struct {
 	db                 DBTX
 	tx                 *sql.Tx
+	createTaskStmt     *sql.Stmt
 	createUserStmt     *sql.Stmt
+	deleteTaskStmt     *sql.Stmt
+	getTaskByIDStmt    *sql.Stmt
 	getUserByEmailStmt *sql.Stmt
 	getUserByIDStmt    *sql.Stmt
+	listTasksStmt      *sql.Stmt
+	updateTaskStmt     *sql.Stmt
 	updateUserStmt     *sql.Stmt
 }
 
@@ -110,9 +155,14 @@ func (q *Queries) WithTx(tx *sql.Tx) *Queries {
 	return &Queries{
 		db:                 tx,
 		tx:                 tx,
+		createTaskStmt:     q.createTaskStmt,
 		createUserStmt:     q.createUserStmt,
+		deleteTaskStmt:     q.deleteTaskStmt,
+		getTaskByIDStmt:    q.getTaskByIDStmt,
 		getUserByEmailStmt: q.getUserByEmailStmt,
 		getUserByIDStmt:    q.getUserByIDStmt,
+		listTasksStmt:      q.listTasksStmt,
+		updateTaskStmt:     q.updateTaskStmt,
 		updateUserStmt:     q.updateUserStmt,
 	}
 }
