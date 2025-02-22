@@ -1,12 +1,33 @@
 # connect-task-manger
 
-## grpcurlコマンドツールをインストール
+## 開発時に使用するコマンド群
+
+### Dockerコンテナ起動
+
+```zsh
+# GoコンテナとMySQLコンテナを構築
+make up
+```
+
+### sqlcによるコード生成
+
+```zsh
+sqlc generate
+```
+
+### bufによるコード生成
+
+```zsh
+buf generate
+```
+
+### grpcurlコマンドツールをインストール
 
 ```zsh
 go install github.com/fullstorydev/grpcurl/cmd/grpcurl@latest
 ```
 
-## バックエンドサービスの起動
+### Goバックエンドサービスの起動
 
 ```zsh
 go run cmd/server/main.go
