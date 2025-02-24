@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"time"
 
 	"github.com/a-s/connect-task-manage/internal/adapter/repository"
 	"github.com/a-s/connect-task-manage/internal/domain/model"
@@ -23,21 +24,23 @@ func (s *TaskService) WithTx(tx *sql.Tx) *TaskService {
 	}
 }
 
-func (s *TaskService) CreateTask(ctx context.Context, title, description, userID string) error {
-	task, err := model.NewTask(title, description, userID)
+func (s *TaskService) CreateTask(ctx context.Context, title, description, userID string, priority string, dueDate *time.Time) error {
+	task, err := model.NewTask(title, description, userID, model.Priority(priority), dueDate) // model.Priority に変換
 	if err != nil {
 		return err
 	}
 	return s.taskRepository.CreateTask(ctx, task)
 }
 
-func (s *TaskService) UpdateTask(ctx context.Context, id, title, description string, isCompleted bool) (*model.Task, error) {
+func (s *TaskService) UpdateTask(ctx context.Context, id, title, description string, isCompleted bool, assigneeID *string, priority string, dueDate *time.Time) (*model.Task, error) {
 
 	task, err := s.taskRepository.GetTaskByID(ctx, id)
 	if err != nil {
 		return nil, err
 	}
-	task.Update(title, description, isCompleted)
+	if err := task.Update(title, description, isCompleted, assigneeID, model.Priority(priority), dueDate); err != nil { // model.Priorityに変換
+		return nil, err
+	}
 	return s.taskRepository.UpdateTask(ctx, task)
 }
 
