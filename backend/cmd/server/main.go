@@ -153,7 +153,13 @@ func (s *TaskServiceServer) CreateTask(
 		return nil, connect.NewError(connect.CodeUnauthenticated, fmt.Errorf("user id not found in context"))
 	}
 
-	err := s.taskService.CreateTask(ctx, req.Msg.Title, req.Msg.Description, userID)
+	var dueDate *time.Time
+	if req.Msg.DueDate != nil {
+		t := req.Msg.DueDate.AsTime()
+		dueDate = &t
+	}
+
+	err := s.taskService.CreateTask(ctx, req.Msg.Title, req.Msg.Description, userID, req.Msg.Priority, dueDate)
 	if err != nil {
 		return nil, connect.NewError(connect.CodeInternal, err)
 	}
@@ -165,8 +171,19 @@ func (s *TaskServiceServer) UpdateTask(
 	ctx context.Context,
 	req *connect.Request[taskv1.UpdateTaskRequest],
 ) (*connect.Response[taskv1.UpdateTaskResponse], error) {
+	var assigneeID *string // ポインタ型の変数を宣言
+	if req.Msg.AssigneeId != nil {
+		s := req.Msg.AssigneeId.Value // 値を取得
+		assigneeID = &s               // ポインタを代入
+	}
 
-	updatedTask, err := s.taskService.UpdateTask(ctx, req.Msg.Id, req.Msg.Title, req.Msg.Description, req.Msg.IsCompleted)
+	var dueDate *time.Time // ポインタ型の変数を宣言
+	if req.Msg.DueDate != nil {
+		t := req.Msg.DueDate.AsTime() // 値を取得
+		dueDate = &t                  // ポインタを代入
+	}
+
+	updatedTask, err := s.taskService.UpdateTask(ctx, req.Msg.Id, req.Msg.Title, req.Msg.Description, req.Msg.IsCompleted, assigneeID, req.Msg.Priority, dueDate) //変更
 	if err != nil {
 		return nil, connect.NewError(connect.CodeInternal, err)
 	}
@@ -178,8 +195,11 @@ func (s *TaskServiceServer) UpdateTask(
 			Description: updatedTask.Description,
 			IsCompleted: updatedTask.IsCompleted,
 			UserId:      updatedTask.UserID,
-			CreatedAt:   &timestamppb.Timestamp{Seconds: updatedTask.CreatedAt.Unix()},
-			UpdatedAt:   &timestamppb.Timestamp{Seconds: updatedTask.UpdatedAt.Unix()},
+			AssigneeId:  nullString(updatedTask.AssigneeID),
+			Priority:    string(updatedTask.Priority),
+			DueDate:     timestamppb.New(*updatedTask.DueDate),
+			CreatedAt:   timestamppb.New(updatedTask.CreatedAt),
+			UpdatedAt:   timestamppb.New(updatedTask.UpdatedAt),
 		},
 	})
 	return res, nil
@@ -226,17 +246,35 @@ func (s *TaskServiceServer) DeleteTask(
 func toProtoTasks(tasks []*model.Task) []*taskv1.Task {
 	protoTasks := make([]*taskv1.Task, len(tasks))
 	for i, task := range tasks {
+		var dueDate *timestamppb.Timestamp
+		if task.DueDate != nil {
+			dueDate = timestamppb.New(*task.DueDate)
+		}
 		protoTasks[i] = &taskv1.Task{
 			Id:          task.ID,
 			Title:       task.Title,
 			Description: task.Description,
 			IsCompleted: task.IsCompleted,
 			UserId:      task.UserID,
+			AssigneeId:  nullString(task.AssigneeID), // ヘルパー関数
+			Priority:    string(task.Priority),       // string に変換
+			DueDate:     dueDate,
 			CreatedAt:   timestamppb.New(task.CreatedAt),
 			UpdatedAt:   timestamppb.New(task.UpdatedAt),
 		}
+		if task.DueDate == nil {
+			protoTasks[i].DueDate = nil
+		}
 	}
 	return protoTasks
+}
+
+// nullString は、*string から string への変換を行うヘルパー関数
+func nullString(s *string) string {
+	if s == nil {
+		return ""
+	}
+	return *s
 }
 
 // NewUserServiceServer は UserServiceServer のコンストラクタ (Fx 用)

@@ -12,8 +12,8 @@ import (
 
 const createTask = `-- name: CreateTask :exec
 
-INSERT INTO tasks (id, title, description, is_completed, user_id)
-VALUES (?, ?, ?, ?, ?)
+INSERT INTO tasks (id, title, description, is_completed, user_id, assignee_id, priority, due_date)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?)
 `
 
 type CreateTaskParams struct {
@@ -22,6 +22,9 @@ type CreateTaskParams struct {
 	Description sql.NullString `json:"description"`
 	IsCompleted bool           `json:"is_completed"`
 	UserID      string         `json:"user_id"`
+	AssigneeID  sql.NullString `json:"assignee_id"`
+	Priority    string         `json:"priority"`
+	DueDate     sql.NullTime   `json:"due_date"`
 }
 
 // sql/queries/tasks.sql
@@ -32,6 +35,9 @@ func (q *Queries) CreateTask(ctx context.Context, arg *CreateTaskParams) error {
 		arg.Description,
 		arg.IsCompleted,
 		arg.UserID,
+		arg.AssigneeID,
+		arg.Priority,
+		arg.DueDate,
 	)
 	return err
 }
@@ -46,7 +52,7 @@ func (q *Queries) DeleteTask(ctx context.Context, id string) error {
 }
 
 const getTaskByID = `-- name: GetTaskByID :one
-SELECT id, title, description, is_completed, user_id, created_at, updated_at FROM tasks WHERE id = ? LIMIT 1
+SELECT id, title, description, is_completed, user_id, assignee_id, priority, due_date, created_at, updated_at FROM tasks WHERE id = ? LIMIT 1
 `
 
 func (q *Queries) GetTaskByID(ctx context.Context, id string) (*Task, error) {
@@ -58,6 +64,9 @@ func (q *Queries) GetTaskByID(ctx context.Context, id string) (*Task, error) {
 		&i.Description,
 		&i.IsCompleted,
 		&i.UserID,
+		&i.AssigneeID,
+		&i.Priority,
+		&i.DueDate,
 		&i.CreatedAt,
 		&i.UpdatedAt,
 	)
@@ -65,7 +74,7 @@ func (q *Queries) GetTaskByID(ctx context.Context, id string) (*Task, error) {
 }
 
 const listTasks = `-- name: ListTasks :many
-SELECT id, title, description, is_completed, user_id, created_at, updated_at FROM tasks WHERE user_id = ? ORDER BY created_at DESC
+SELECT id, title, description, is_completed, user_id, assignee_id, priority, due_date, created_at, updated_at FROM tasks WHERE user_id = ? ORDER BY created_at DESC
 `
 
 func (q *Queries) ListTasks(ctx context.Context, userID string) ([]*Task, error) {
@@ -83,6 +92,9 @@ func (q *Queries) ListTasks(ctx context.Context, userID string) ([]*Task, error)
 			&i.Description,
 			&i.IsCompleted,
 			&i.UserID,
+			&i.AssigneeID,
+			&i.Priority,
+			&i.DueDate,
 			&i.CreatedAt,
 			&i.UpdatedAt,
 		); err != nil {
@@ -100,13 +112,17 @@ func (q *Queries) ListTasks(ctx context.Context, userID string) ([]*Task, error)
 }
 
 const updateTask = `-- name: UpdateTask :exec
-UPDATE tasks SET title = ?, description = ?, is_completed = ? WHERE id = ?
+UPDATE tasks SET title = ?, description = ?, is_completed = ?, assignee_id = ?, priority = ?, due_date = ?
+WHERE id = ?
 `
 
 type UpdateTaskParams struct {
 	Title       string         `json:"title"`
 	Description sql.NullString `json:"description"`
 	IsCompleted bool           `json:"is_completed"`
+	AssigneeID  sql.NullString `json:"assignee_id"`
+	Priority    string         `json:"priority"`
+	DueDate     sql.NullTime   `json:"due_date"`
 	ID          string         `json:"id"`
 }
 
@@ -115,6 +131,9 @@ func (q *Queries) UpdateTask(ctx context.Context, arg *UpdateTaskParams) error {
 		arg.Title,
 		arg.Description,
 		arg.IsCompleted,
+		arg.AssigneeID,
+		arg.Priority,
+		arg.DueDate,
 		arg.ID,
 	)
 	return err

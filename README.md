@@ -78,7 +78,7 @@ grpcurl -plaintext -H "Authorization: Bearer <取得したaccess_token>" -d '{ "
 ### user.v1.UserService/GetMe
 
 ```zsh
-/opt/task_manage # grpcurl -plaintext -H "Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VyX2lkIjoiM2UxZWFmNzMtZDlkNi00NGY5LWEyZDEtMGJiZDkwNzJlYTIzIiwiaXNzIjoiZGRkLWF1dGgtYXBwIiwic3ViIjoidGVzdEBleGFtcGxlLmNvbSIsImV4cCI6MTc0MDE1OTI4OCwibmJmIjoxNzQwMTU4Mzg4LCJpYXQiOjE3NDAxNTgzODh9.NBTfXvWEWlnm_csCVsGqEh72Ql0ISpBhIZ4LqD7kJXc" localhost:8080 user.v1.UserService/GetMe
+/opt/task_manage # grpcurl -plaintext -H "Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VyX2lkIjoiZWRmZDY1MzUtZjRlOS00OTBlLWEyNTAtNmEyMGMzNDc0M2NmIiwiaXNzIjoiZGRkLWF1dGgtYXBwIiwic3ViIjoidGVzdEBleGFtcGxlLmNvbSIsImV4cCI6MTc0MDQwNDY0NywibmJmIjoxNzQwNDAzNzQ3LCJpYXQiOjE3NDA0MDM3NDd9.GiuDEoPE1vlB_xEQnwjWE71fmQeSb-3UFIKmnqoR-0c" localhost:8080 user.v1.UserService/GetMe
 {
   "user": {
     "id": "3e1eaf73-d9d6-44f9-a2d1-0bbd9072ea23",
@@ -108,23 +108,50 @@ grpcurl -plaintext -H "Authorization: Bearer <取得したaccess_token>" -d '{ "
 ### task.v1.TaskService/CreateTask
 
 ```zsh
-/opt/task_manage # grpcurl -plaintext -H "Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VyX2lkIjoiZjhiODQ0NzEtY2U5Mi00ZTNmLWI3OGMtOGQyYTcxMzEwYzZlIiwiaXNzIjoiZGRkLWF1dGgtYXBwIiwic3ViIjoidGVzdEBleGFtcGxlLmNvbSIsImV4cCI6MTc0MDIzMDE4MCwibmJmIjoxNzQwMjI5MjgwLCJpYXQiOjE3NDAyMjkyODB9.PgxBXd9X1zN5REHsyMkxO3t9ZBHayJ30UzEVaYjcXL0" -d '{"title": "My First Task", "description": "This is a description of my first task."}' localhost:8080 task.v1.TaskService/CreateTask
+# パターン①
+/opt/task_manage # grpcurl -plaintext -H "Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VyX2lkIjoiZWRmZDY1MzUtZjRlOS00OTBlLWEyNTAtNmEyMGMzNDc0M2NmIiwiaXNzIjoiZGRkLWF1dGgtYXBwIiwic3ViIjoidGVzdEBleGFtcGxlLmNvbSIsImV4cCI6MTc0MDQwNzc0MCwibmJmIjoxNzQwNDA2ODQwLCJpYXQiOjE3NDA0MDY4NDB9.25wrI8edTyn4ucPeLTrz6xRbeuXxyCcUnf7T3SJYrJo" -d '{"title": "Buy groceries","description": "Milk, eggs, bread, cheese","priority": "high","due_date": null}' localhost:8080 task.v1.TaskService/CreateTask
+{}
+```
+
+```zsh
+# パターン②
+/opt/task_manage # grpcurl -plaintext -H "Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VyX2lkIjoiZWRmZDY1MzUtZjRlOS00OTBlLWEyNTAtNmEyMGMzNDc0M2NmIiwiaXNzIjoiZGRkLWF1dGgtYXBwIiwic3ViIjoidGVzdEBleGFtcGxlLmNvbSIsImV4cCI6MTc0MDQwNzc0MCwibmJmIjoxNzQwNDA2ODQwLCJpYXQiOjE3NDA0MDY4NDB9.25wrI8edTyn4ucPeLTrz6xRbeuXxyCcUnf7T3SJYrJo" -d '{"title": "Buy groceries","description": "Milk, eggs, bread, cheese","priority": "high","due_date": "2025-03-29T12:00:00Z"}' localhost:8080 task.v1.TaskService/CreateTask
 {}
 ```
 
 ### task.v1.TaskService/ListTasks
 
 ```zsh
-/opt/task_manage # grpcurl -plaintext -H "Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VyX2lkIjoiZjhiODQ0NzEtY2U5Mi00ZTNmLWI3OGMtOGQyYTcxMzEwYzZlIiwiaXNzIjoiZGRkLWF1dGgtYXBwIiwic3ViIjoidGVzdEBleGFtcGxlLmNvbSIsImV4cCI6MTc0MDIzMDE4MCwibmJmIjoxNzQwMjI5MjgwLCJpYXQiOjE3NDAyMjkyODB9.PgxBXd9X1zN5REHsyMkxO3t9ZBHayJ30UzEVaYjcXL0" localhost:8080 task.v1.TaskService/ListTasks
+/opt/task_manage # grpcurl -plaintext -H "Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VyX2lkIjoiZWRmZDY1MzUtZjRlOS00OTBlLWEyNTAtNmEyMGMzNDc0M2NmIiwiaXNzIjoiZGRkLWF1dGgtYXBwIiwic3ViIjoidGVzdEBleGFtcGxlLmNvbSIsImV4cCI6MTc0MDQwNzc0MCwibmJmIjoxNzQwNDA2ODQwLCJpYXQiOjE3NDA0MDY4NDB9.25wrI8edTyn4ucPeLTrz6xRbeuXxyCcUnf7T3SJYrJo" localhost:8080 task.v1.TaskService/ListTasks
 {
   "tasks": [
     {
-      "id": "d1970f2c-345c-45a3-9141-887ac761f74e",
-      "title": "My First Task",
-      "description": "This is a description of my first task.",
-      "userId": "f8b84471-ce92-4e3f-b78c-8d2a71310c6e",
-      "createdAt": "2025-02-22T22:04:02Z",
-      "updatedAt": "2025-02-22T22:04:02Z"
+      "id": "98c29d67-564e-41f2-9a89-e231381be0e8",
+      "title": "Buy groceries",
+      "description": "Milk, eggs, bread, cheese",
+      "userId": "edfd6535-f4e9-490e-a250-6a20c34743cf",
+      "createdAt": "2025-02-24T23:23:33Z",
+      "updatedAt": "2025-02-24T23:23:33Z",
+      "priority": "high",
+      "dueDate": "2025-03-29T00:00:00Z"
+    },
+    {
+      "id": "a466aff0-48c6-42a0-9bf1-bf7d61062cc5",
+      "title": "Buy groceries",
+      "description": "Milk, eggs, bread, cheese",
+      "userId": "edfd6535-f4e9-490e-a250-6a20c34743cf",
+      "createdAt": "2025-02-24T23:23:05Z",
+      "updatedAt": "2025-02-24T23:23:05Z",
+      "priority": "high"
+    },
+    {
+      "id": "1c27e56e-9ca2-452f-9c7f-7f22258f0b2d",
+      "title": "Buy groceries",
+      "description": "Milk, eggs, bread, cheese",
+      "userId": "edfd6535-f4e9-490e-a250-6a20c34743cf",
+      "createdAt": "2025-02-24T23:21:03Z",
+      "updatedAt": "2025-02-24T23:21:03Z",
+      "priority": "high"
     }
   ]
 }
@@ -133,16 +160,19 @@ grpcurl -plaintext -H "Authorization: Bearer <取得したaccess_token>" -d '{ "
 ### task.v1.TaskService/UpdateTask
 
 ```zsh
-opt/task_manage # grpcurl -plaintext -H "Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VyX2lkIjoiZjhiODQ0NzEtY2U5Mi00ZTNmLWI3OGMtOGQyYTcxMzEwYzZlIiwiaXNzIjoiZGRkLWF1dGgtYXBwIiwic3ViIjoidGVzdEBleGFtcGxlLmNvbSIsImV4cCI6MTc0MDIzMDE4MCwibmJmIjoxNzQwMjI5MjgwLCJpYXQiOjE3NDAyMjkyODB9.PgxBXd9X1zN5REHsyMkxO3t9ZBHayJ30UzEVaYjcXL0" -d '{"id": "d1970f2c-345c-45a3-9141-887ac761f74e", "title": "Updated Task Title", "description": "Updated task description.", "isCompleted": true}' localhost:8080 task.v1.TaskService/UpdateTask
+/opt/task_manage # grpcurl -plaintext -H "Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VyX2lkIjoiZWRmZDY1MzUtZjRlOS00OTBlLWEyNTAtNmEyMGMzNDc0M2NmIiwiaXNzIjoiZGRkLWF1dGgtYXBwIiwic3ViIjoidGVzdEBleGFtcGxlLmNvbSIsImV4cCI6MTc0MDQwODY3NiwibmJmIjoxNzQwNDA3Nzc2LCJpYXQiOjE3NDA0MDc3NzZ9.JUD9BjcIj76TcgnSLMY4yw7lVbVvuMnY0Cj0MSWuc-M" -d '{ "id": "1c27e56e-9ca2-452f-9c7f-7f22258f0b2d", "title": "Buy groceries and snacks", "description": "Milk, eggs, bread, cheese, chips, soda", "isCompleted": true, "assignee_id": "edfd6535-f4e9-490e-a250-6a20c34743cf", "priority": "medium", "due_date": "2025-04-10T00:00:00Z"}' localhost:8080 task.v1.TaskService/UpdateTask
 {
   "task": {
-    "id": "d1970f2c-345c-45a3-9141-887ac761f74e",
-    "title": "Updated Task Title",
-    "description": "Updated task description.",
+    "id": "1c27e56e-9ca2-452f-9c7f-7f22258f0b2d",
+    "title": "Buy groceries and snacks",
+    "description": "Milk, eggs, bread, cheese, chips, soda",
     "isCompleted": true,
-    "userId": "f8b84471-ce92-4e3f-b78c-8d2a71310c6e",
-    "createdAt": "2025-02-22T22:04:02Z",
-    "updatedAt": "2025-02-22T22:05:45Z"
+    "userId": "edfd6535-f4e9-490e-a250-6a20c34743cf",
+    "createdAt": "2025-02-24T23:21:03Z",
+    "updatedAt": "2025-02-24T23:36:36Z",
+    "assigneeId": "edfd6535-f4e9-490e-a250-6a20c34743cf",
+    "priority": "medium",
+    "dueDate": "2025-04-10T00:00:00Z"
   }
 }
 ```
