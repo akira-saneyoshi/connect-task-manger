@@ -5,6 +5,9 @@ tidy:
 run:
 	go run cmd/server/main.go
 
+build:
+	go build -o connect-task-manger cmd/server/main.go
+
 migrate:
 	go run cmd/migration/main.go
 
