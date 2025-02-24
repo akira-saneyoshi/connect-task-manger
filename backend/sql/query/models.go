@@ -15,6 +15,9 @@ type Task struct {
 	Description sql.NullString `json:"description"`
 	IsCompleted bool           `json:"is_completed"`
 	UserID      string         `json:"user_id"`
+	AssigneeID  sql.NullString `json:"assignee_id"`
+	Priority    string         `json:"priority"`
+	DueDate     sql.NullTime   `json:"due_date"`
 	CreatedAt   time.Time      `json:"created_at"`
 	UpdatedAt   time.Time      `json:"updated_at"`
 }
