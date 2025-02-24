@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"time"
 
 	"github.com/a-s/connect-task-manage/internal/adapter/repository"
 	"github.com/a-s/connect-task-manage/internal/domain/model"
@@ -53,21 +54,37 @@ func (r *taskRepository) WithTx(tx *sql.Tx) repository.TaskRepository {
 }
 
 func (r *taskRepository) CreateTask(ctx context.Context, task *model.Task) error {
+	var due_date sql.NullTime
+	if task.DueDate != nil {
+		due_date = sql.NullTime{Time: *task.DueDate, Valid: true}
+	}
+
 	return r.queries.CreateTask(ctx, &query.CreateTaskParams{
 		ID:          task.ID,
 		Title:       task.Title,
 		Description: sql.NullString{String: task.Description, Valid: task.Description != ""},
 		IsCompleted: task.IsCompleted,
 		UserID:      task.UserID,
+		AssigneeID:  nullString(task.AssigneeID), //nullString ヘルパー関数
+		Priority:    string(task.Priority),       // string に変換
+		DueDate:     due_date,
 	})
 }
 
 func (r *taskRepository) UpdateTask(ctx context.Context, task *model.Task) (*model.Task, error) {
+	var due_date sql.NullTime
+	if task.DueDate != nil {
+		due_date = sql.NullTime{Time: *task.DueDate, Valid: true}
+	}
+
 	err := r.queries.UpdateTask(ctx, &query.UpdateTaskParams{
 		ID:          task.ID,
 		Title:       task.Title,
 		Description: sql.NullString{String: task.Description, Valid: task.Description != ""},
 		IsCompleted: task.IsCompleted,
+		AssigneeID:  nullString(task.AssigneeID),
+		Priority:    string(task.Priority),
+		DueDate:     due_date,
 	})
 	if err != nil {
 		return nil, err
@@ -83,6 +100,9 @@ func (r *taskRepository) UpdateTask(ctx context.Context, task *model.Task) (*mod
 		Description: updatedTask.Description.String, // Stringを取り出す
 		IsCompleted: updatedTask.IsCompleted,
 		UserID:      updatedTask.UserID,
+		AssigneeID:  stringPtr(updatedTask.AssigneeID),    // stringPtr ヘルパー関数
+		Priority:    model.Priority(updatedTask.Priority), // model.Priority に変換
+		DueDate:     nullTime(updatedTask.DueDate),        // nullTime ヘルパー関数
 		CreatedAt:   updatedTask.CreatedAt,
 		UpdatedAt:   updatedTask.UpdatedAt,
 	}, nil
@@ -102,6 +122,9 @@ func (r *taskRepository) ListTasks(ctx context.Context, userID string) ([]*model
 			Description: t.Description.String,
 			IsCompleted: t.IsCompleted,
 			UserID:      t.UserID,
+			AssigneeID:  stringPtr(t.AssigneeID),    // stringPtr ヘルパー関数
+			Priority:    model.Priority(t.Priority), // model.Priority に変換
+			DueDate:     nullTime(t.DueDate),
 			CreatedAt:   t.CreatedAt,
 			UpdatedAt:   t.UpdatedAt,
 		})
@@ -126,7 +149,34 @@ func (r *taskRepository) GetTaskByID(ctx context.Context, id string) (*model.Tas
 		Description: task.Description.String, // Stringを取り出す
 		IsCompleted: task.IsCompleted,
 		UserID:      task.UserID,
+		AssigneeID:  stringPtr(task.AssigneeID),    // stringPtr ヘルパー関数
+		Priority:    model.Priority(task.Priority), // model.Priority に変換
+		DueDate:     nullTime(task.DueDate),        // nullTime ヘルパー関数
 		CreatedAt:   task.CreatedAt,
 		UpdatedAt:   task.UpdatedAt,
 	}, nil
+}
+
+// nullString は *string から sql.NullString への変換を行うヘルパー関数
+func nullString(s *string) sql.NullString {
+	if s == nil {
+		return sql.NullString{} // Valid = false
+	}
+	return sql.NullString{String: *s, Valid: true}
+}
+
+// stringPtr は sql.NullString から *string への変換を行うヘルパー関数
+func stringPtr(ns sql.NullString) *string {
+	if !ns.Valid {
+		return nil
+	}
+	return &ns.String
+}
+
+// nullTime は sql.NullTime から *time.Time への変換を行うヘルパー関数
+func nullTime(nt sql.NullTime) *time.Time {
+	if !nt.Valid {
+		return nil
+	}
+	return &nt.Time
 }
