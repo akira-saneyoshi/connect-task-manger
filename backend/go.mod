@@ -19,6 +19,7 @@ require (
 	filippo.io/edwards25519 v1.1.0 // indirect
 	github.com/google/go-cmp v0.6.0 // indirect
 	github.com/mfridman/interpolate v0.0.2 // indirect
+	github.com/rs/cors v1.11.1 // indirect
 	github.com/sethvargo/go-retry v0.3.0 // indirect
 	go.uber.org/dig v1.18.0 // indirect
 	go.uber.org/fx v1.23.0 // indirect

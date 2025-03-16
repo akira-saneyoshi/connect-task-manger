@@ -24,6 +24,7 @@ import (
 	"github.com/a-s/connect-task-manage/internal/infrastructure/logger"
 	"github.com/a-s/connect-task-manage/pkg/authorization"
 	"github.com/a-s/connect-task-manage/pkg/logging"
+	"github.com/rs/cors"
 	"go.uber.org/fx"
 	"go.uber.org/zap"
 	"golang.org/x/net/http2"
@@ -326,9 +327,21 @@ func NewHTTPServer(
 	mux.Handle(grpcreflect.NewHandlerV1(reflector))
 	mux.Handle(grpcreflect.NewHandlerV1Alpha(reflector))
 
+	// CORS ミドルウェアの作成 (設定は必要に応じて変更)
+	c := cors.New(cors.Options{
+		AllowedOrigins:   []string{"*"}, // 例: 許可するオリジン
+		AllowedMethods:   []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"},
+		AllowedHeaders:   []string{"Authorization", "Content-Type", "Connect-Protocol-Version", "Connect-Timeout-Ms"}, // 許可するヘッダー
+		AllowCredentials: true,                                                                                        // 認証情報 (Cookie など) を許可するか
+		Debug:            true,                                                                                        // デバッグモード (ログ出力)
+	})
+
+	// CORS ミドルウェアを適用
+	corsHandler := c.Handler(mux)
+
 	server := &http.Server{
 		Addr:    fmt.Sprintf(":%s", cfg.App.Port),
-		Handler: h2c.NewHandler(mux, &http2.Server{}),
+		Handler: h2c.NewHandler(corsHandler, &http2.Server{}), // h2c と CORS を組み合わせる
 	}
 
 	lc.Append(fx.Hook{
