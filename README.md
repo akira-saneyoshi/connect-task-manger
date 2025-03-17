@@ -54,6 +54,16 @@ buf generate
 go install github.com/fullstorydev/grpcurl/cmd/grpcurl@latest
 ```
 
+### Next.jsのセットアップ
+
+```zsh
+bunx create-next-app@latest frontend
+
+bun run dev
+
+bunx --bun shadcn@latest init
+```
+
 ### Goバックエンドサービスの起動
 
 ```zsh
